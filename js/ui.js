@@ -45,14 +45,14 @@ export class UI {
     this.nodes.photoInput.value = "";
   }
 
-  setCamera(running, label = running ? "Camera on" : "Camera off") {
+  setCamera(running, label = running ? "Camera on" : "Camera off", canSwitchFacing = false) {
     this.nodes.cameraPlaceholder.hidden = running;
     this.nodes.cameraStatus.lastElementChild.textContent = label;
     this.nodes.cameraStatus.querySelector(".status-dot").dataset.active = String(running);
     this.nodes.startCamera.disabled = running;
     this.nodes.stopCamera.disabled = !running;
     this.nodes.fullscreenCamera.disabled = !running;
-    this.nodes.facingToggle.disabled = !running;
+    this.nodes.facingToggle.disabled = !running || !canSwitchFacing;
     this.nodes.cameraSelect.disabled = false;
   }
 

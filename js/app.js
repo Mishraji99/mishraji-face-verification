@@ -5,6 +5,8 @@ import { UI } from "./ui.js";
 const ui = new UI();
 const camera = new CameraManager(ui.nodes.camera, {
   onLost: message => {
+    stopPositionMonitor();
+    state.scanGeneration++;
     ui.setCamera(false);
     ui.updateScanAvailability(false);
     ui.status(message, "error");
@@ -21,6 +23,8 @@ const state = { referenceImage: null, objectUrl: null, modelsReady: false, scann
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_IMAGE_PIXELS = 40000000;
 const DEMO_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+let positionMonitor = null;
+let positionCheckInProgress = false;
 
 function randomToken(length) {
   const bytes = new Uint8Array(length);
@@ -126,6 +130,7 @@ function clearPhoto() {
 
 function clearSession() {
   clearPhoto();
+  stopPositionMonitor();
   void camera.stop();
   ui.setCamera(false);
   ui.clearResult();
@@ -204,6 +209,37 @@ function updatePositionFeedback(box, input) {
   } else {
     ui.setPosition("Face is centered. Hold still for a clear scan.", "good");
   }
+}
+
+function stopPositionMonitor() {
+  clearInterval(positionMonitor);
+  positionMonitor = null;
+}
+
+function startPositionMonitor() {
+  stopPositionMonitor();
+  positionMonitor = setInterval(async () => {
+    if (!camera.isRunning || !state.modelsReady || state.scanning || positionCheckInProgress) return;
+    positionCheckInProgress = true;
+    try {
+      const { count, box } = await detector.detectPosition(ui.nodes.camera);
+      if (!camera.isRunning || state.scanning) return;
+      if (count === 0) {
+        ui.setDetection("live", "no face", "");
+        ui.setPosition("No face found yet. Center one face in the guide.", "warning");
+      } else if (count > 1) {
+        ui.setDetection("live", "multiple faces", "error");
+        ui.setPosition("More than one face is visible. Make sure only one face is in view.", "warning");
+      } else {
+        ui.setDetection("live", "one face detected", "good");
+        updatePositionFeedback(box, ui.nodes.camera);
+      }
+    } catch {
+      if (camera.isRunning && !state.scanning) ui.setPosition("Live positioning guidance is temporarily unavailable.", "warning");
+    } finally {
+      positionCheckInProgress = false;
+    }
+  }, 1200);
 }
 
 function requireSecureRandom() {
@@ -287,16 +323,19 @@ async function startCamera() {
     const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
       || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
     await camera.start({ mobile });
-    ui.setCamera(true);
+    ui.setCamera(true, "Camera on", camera.mobile);
+    startPositionMonitor();
     ui.nodes.facingToggle.textContent = camera.facingMode === "user" ? "Use back camera" : "Use front camera";
     await refreshDiagnostics();
     ui.status("Camera ready. Center one face in the guide before scanning.", "success");
     ui.setPosition("Center one face in the guide after starting the camera.");
     updateScanAvailability();
   } catch (error) {
+    stopPositionMonitor();
     ui.setCamera(false);
     ui.nodes.startCamera.disabled = false;
     ui.updateScanAvailability(false);
+    if (error.name === "AbortError") return;
     const message = cameraErrorMessage(error);
     ui.status(message, "error");
     ui.toast(message);
@@ -310,16 +349,20 @@ async function handleCameraSwitch(action) {
     ui.status("Switching camera…");
     await action();
     const running = camera.isRunning;
-    ui.setCamera(running);
+    ui.setCamera(running, running ? "Camera on" : "Camera off", camera.mobile);
+    if (running) startPositionMonitor();
+    else stopPositionMonitor();
     ui.nodes.startCamera.disabled = running;
     ui.nodes.facingToggle.textContent = camera.facingMode === "user" ? "Use back camera" : "Use front camera";
     await refreshDiagnostics();
     ui.status(running ? "Camera switched and ready." : "Camera selection updated. Start the camera to use it.");
     updateScanAvailability();
   } catch (error) {
+    stopPositionMonitor();
     ui.setCamera(false);
     ui.nodes.startCamera.disabled = false;
     ui.updateScanAvailability(false);
+    if (error.name === "AbortError") return;
     ui.status(cameraErrorMessage(error), "error");
     ui.toast(cameraErrorMessage(error));
   }
@@ -373,6 +416,8 @@ function bindEvents() {
   ui.nodes.clearPhoto.addEventListener("click", clearPhoto);
   ui.nodes.startCamera.addEventListener("click", () => void startCamera());
   ui.nodes.stopCamera.addEventListener("click", () => {
+    state.scanGeneration++;
+    stopPositionMonitor();
     void camera.stop();
     ui.setCamera(false);
     updateScanAvailability();
@@ -406,6 +451,7 @@ function bindEvents() {
   window.addEventListener("online", () => void refreshDiagnostics());
   window.addEventListener("offline", () => void refreshDiagnostics());
   window.addEventListener("pagehide", () => {
+    stopPositionMonitor();
     state.referenceImage = null;
     if (state.objectUrl) URL.revokeObjectURL(state.objectUrl);
     camera.destroy();
@@ -433,6 +479,7 @@ async function initialize() {
     ui.diagnostic("libraryInfo", "Ready", "good");
     ui.diagnostic("modelInfo", "Ready", "good");
     ui.status("System ready. Choose a reference photo and start the camera.");
+    if (camera.isRunning) startPositionMonitor();
   } catch (error) {
     ui.diagnostic("libraryInfo", window.faceapi ? "Loaded" : "Unavailable", window.faceapi ? "warning" : "error");
     ui.diagnostic("modelInfo", "Unavailable", "error");

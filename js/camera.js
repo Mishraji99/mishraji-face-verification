@@ -7,6 +7,7 @@ function waitForVideoReady(video) {
       clearTimeout(timer);
       video.removeEventListener("loadedmetadata", onReady);
       video.removeEventListener("error", onError);
+      video.removeEventListener("emptied", onEmptied);
     };
     const onReady = () => {
       cleanup();
@@ -16,8 +17,13 @@ function waitForVideoReady(video) {
       cleanup();
       reject(new Error("The browser could not initialize the camera preview."));
     };
+    const onEmptied = () => {
+      cleanup();
+      reject(Object.assign(new Error("Camera operation was canceled."), { name: "AbortError" }));
+    };
     video.addEventListener("loadedmetadata", onReady, { once: true });
     video.addEventListener("error", onError, { once: true });
+    video.addEventListener("emptied", onEmptied, { once: true });
     timer = setTimeout(() => {
       cleanup();
       reject(new Error("The camera did not provide video metadata in time."));
@@ -47,6 +53,9 @@ export class CameraManager {
     this.onLost = callbacks.onLost || (() => {});
     this.stream = null;
     this.facingMode = "user";
+    this.mobile = false;
+    this.startPromise = null;
+    this.operationGeneration = 0;
     this.selectedDeviceId = "";
     this.deviceChangeHandler = () => callbacks.onDevicesChanged?.();
     navigator.mediaDevices?.addEventListener?.("devicechange", this.deviceChangeHandler);
@@ -62,17 +71,33 @@ export class CameraManager {
     return devices.filter(device => device.kind === "videoinput");
   }
 
-  async start(options = {}) {
+  start(options = {}) {
+    if (this.startPromise) {
+      return Promise.reject(new Error("A camera change is already in progress. Try again in a moment."));
+    }
+    const generation = ++this.operationGeneration;
+    const operation = this.open(options, generation);
+    this.startPromise = operation.finally(() => {
+      this.startPromise = null;
+    });
+    return this.startPromise;
+  }
+
+  async open(options = {}, generation) {
     if (!navigator.mediaDevices?.getUserMedia) {
       throw new Error(window.isSecureContext ? "This browser does not support camera access." : "Camera access requires HTTPS or localhost.");
     }
 
-    await this.stop();
+    await this.stop({ invalidate: false });
+    if (generation !== this.operationGeneration) {
+      throw Object.assign(new Error("Camera operation was canceled."), { name: "AbortError" });
+    }
+    this.mobile = options.mobile ?? this.mobile;
     const deviceId = options.deviceId ?? this.selectedDeviceId;
     const cameraConstraints = deviceId
       ? { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
       : {
-          ...(options.mobile ? { facingMode: { ideal: this.facingMode } } : {}),
+          ...(this.mobile ? { facingMode: { ideal: this.facingMode } } : {}),
           width: { ideal: 1280 },
           height: { ideal: 720 }
         };
@@ -85,10 +110,13 @@ export class CameraManager {
         stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: deviceId ? { deviceId: { exact: deviceId } } : true });
       }
 
+      if (generation !== this.operationGeneration) throw Object.assign(new Error("Camera operation was canceled."), { name: "AbortError" });
       const metadataReady = waitForVideoReady(this.video);
       this.video.srcObject = stream;
       await metadataReady;
+      if (generation !== this.operationGeneration) throw Object.assign(new Error("Camera operation was canceled."), { name: "AbortError" });
       await this.video.play();
+      if (generation !== this.operationGeneration) throw Object.assign(new Error("Camera operation was canceled."), { name: "AbortError" });
       this.stream = stream;
       this.video.parentElement?.style.setProperty("--camera-aspect", `${this.video.videoWidth} / ${this.video.videoHeight}`);
       const track = stream.getVideoTracks()[0];
@@ -114,13 +142,15 @@ export class CameraManager {
   }
 
   async switchFacing() {
+    if (!this.mobile) throw new Error("Front and back camera switching is only available on mobile devices.");
     this.selectedDeviceId = "";
     this.facingMode = this.facingMode === "user" ? "environment" : "user";
-    if (this.isRunning) return this.start();
+    if (this.isRunning) return this.start({ mobile: this.mobile });
     return null;
   }
 
-  async stop() {
+  async stop({ invalidate = true } = {}) {
+    if (invalidate) this.operationGeneration++;
     const stream = this.stream || this.video.srcObject;
     if (stream?.getTracks) stream.getTracks().forEach(track => track.stop());
     this.stream = null;

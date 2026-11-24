@@ -13,8 +13,16 @@ function loadScript(url) {
     const script = document.createElement("script");
     script.src = url;
     script.crossOrigin = "anonymous";
-    script.onload = () => resolve();
+    const timer = setTimeout(() => {
+      script.remove();
+      reject(new Error("Recognition library download timed out."));
+    }, 15000);
+    script.onload = () => {
+      clearTimeout(timer);
+      resolve();
+    };
     script.onerror = () => {
+      clearTimeout(timer);
       script.remove();
       reject(new Error("Recognition library download failed."));
     };
@@ -89,6 +97,13 @@ export class FaceDetection {
       if (error instanceof Error && /No face detected|Multiple faces detected/.test(error.message)) throw error;
       throw new Error("Face detection failed. Try a clearer image or restart the comparison.");
     }
+  }
+
+  async detectPosition(input) {
+    if (!this.faceapi) return { count: 0, box: null };
+    const options = new this.faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 });
+    const detections = await this.faceapi.detectAllFaces(input, options);
+    return { count: detections.length, box: detections.length === 1 ? detections[0].box : null };
   }
 
   distance(first, second) {
