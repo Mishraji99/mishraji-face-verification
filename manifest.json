@@ -1,0 +1,19 @@
+{
+  "id": "./",
+  "name": "Mishraji Face Verification",
+  "short_name": "Face Lab",
+  "description": "An educational, browser-local face-matching demonstration.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#111512",
+  "theme_color": "#111512",
+  "icons": [
+    {
+      "src": "assets/app-icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
