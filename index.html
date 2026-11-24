@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0d10">
+  <meta name="description" content="A local-only face comparison demonstration.">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="css/style.css">
+  <title>Mishraji Face Verification 2.0</title>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">M</span><div><strong>MISHRAJI</strong><small>FACE VERIFICATION <b>2.0</b></small></div></div>
+    <div class="top-actions"><span class="privacy-pill">● LOCAL PROCESSING</span><button id="themeToggle" class="icon-button" aria-label="Toggle theme">☼</button></div>
+  </header>
+  <main class="shell">
+    <section class="hero"><div><p class="eyebrow">DEMONSTRATION WORKSPACE</p><h1>Compare a reference photo<br><span>with a live camera.</span></h1><p class="intro">Face analysis stays in this browser. Nothing is uploaded or stored permanently.</p></div><div class="hero-actions"><button id="fullscreenButton" class="button secondary">⛶ Fullscreen</button><button id="soundButton" class="button secondary" aria-pressed="false">🔇 Sound off</button></div></section>
+    <div class="layout">
+      <div class="workspace">
+        <section class="card">
+          <div class="card-heading"><div><span class="step">01</span><h2>Reference photo</h2></div><button id="clearPhoto" class="text-button">Clear photo</button></div>
+          <label class="upload-box" for="photoInput"><span class="upload-icon">↑</span><strong>Choose a clear photo</strong><small>JPG, PNG or WebP · one face only</small><input id="photoInput" type="file" accept="image/*"></label>
+          <img id="photoPreview" class="reference-preview" alt="Selected reference photo">
+          <p id="photoStatus" class="helper">No reference photo selected.</p>
+        </section>
+        <section class="card camera-card">
+          <div class="card-heading"><div><span class="step">02</span><h2>Live camera</h2></div><span id="cameraStatus" class="status-dot">OFFLINE</span></div>
+          <div class="camera-frame"><video id="camera" autoplay muted playsinline aria-label="Live camera preview"></video><div class="face-guide" aria-hidden="true"></div><div id="scanLine" class="scan-line"></div><span class="camera-hint">Align one face inside the guide</span></div>
+          <div class="camera-controls"><button id="startCamera" class="button primary">Start camera</button><button id="switchCamera" class="button secondary" disabled>↻ Switch</button><button id="stopCamera" class="button secondary" disabled>Stop</button></div>
+          <p id="cameraMessage" class="helper">Camera permission is requested only when you start.</p>
+        </section>
+        <section class="card">
+          <div class="card-heading"><div><span class="step">03</span><h2>Demonstration scan</h2></div><span id="modelStatus" class="status-dot">LOADING</span></div>
+          <div class="progress-track"><div id="progressBar"></div></div>
+          <p id="status" class="status-message" role="status" aria-live="polite">Loading face recognition system…</p>
+          <button id="scanButton" class="button primary scan-button" disabled>Scan &amp; verify</button>
+          <div id="result" class="result" hidden><span id="resultBadge" class="result-badge"></span><h2 id="resultTitle"></h2><p id="resultMessage"></p><dl class="result-grid"><div><dt>Distance</dt><dd id="distance">—</dd></div><div><dt>Threshold</dt><dd id="threshold">0.50</dd></div><div><dt>Time</dt><dd id="resultTime">—</dd></div><div><dt>Session ID</dt><dd id="sessionId">—</dd></div></dl><div class="result-actions"><button id="copyButton" class="button secondary">Copy session ID</button><button id="exportButton" class="button secondary">Export report</button><button id="scanAgain" class="button primary">Scan again</button></div></div>
+        </section>
+      </div>
+      <aside class="sidebar">
+        <section class="card"><div class="card-heading"><h2>System diagnostics</h2><button id="refreshDiagnostics" class="text-button">Refresh</button></div><ul class="diagnostics"><li><span>Browser</span><strong id="browserInfo">Checking…</strong></li><li><span>Secure context</span><strong id="secureInfo">Checking…</strong></li><li><span>Camera devices</span><strong id="deviceInfo">Checking…</strong></li><li><span>Recognition model</span><strong id="modelInfo">Loading…</strong></li></ul></section>
+        <section class="card privacy-card"><h2>Privacy by design</h2><p>Images are analyzed locally in memory. Face descriptors are discarded after each scan; no analytics or hidden tracking is included.</p><button id="clearSession" class="button secondary">Clear session data</button></section>
+        <section class="card settings-card"><h2>Demo settings</h2><label for="thresholdInput">Match threshold <output id="thresholdOutput">0.50</output></label><input id="thresholdInput" type="range" min="0.35" max="0.70" step="0.01" value="0.50"><p class="helper">A lower value is stricter. This is not an identity standard.</p></section>
+      </aside>
+    </div>
+    <footer><span>⚠ Demonstration only — never use this result for access control or identity proof.</span><button id="installButton" class="text-button" hidden>Install app</button></footer>
+  </main>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
